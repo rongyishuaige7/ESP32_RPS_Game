@@ -3,26 +3,24 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "DisplayManager.h"
+#include "ButtonManager.h"
+#include "StateMachine.h"
 
 static const char* TAG = "RPS_Game";
 
-enum GameState {
-    STATE_IDLE,
-    STATE_COUNTDOWN,
-    STATE_PLAYING,
-    STATE_RESULT
-};
-
-GameState currentState = STATE_IDLE;
 DisplayManager display;
+ButtonManager buttons;
+StateMachine stateMachine(&display, &buttons);
 
 extern "C" void app_main() {
     ESP_LOGI(TAG, "RPS Game Starting...");
 
     display.init();
-    display.showIdle();
+    buttons.init();
+    stateMachine.reset();
 
     while(true) {
-        vTaskDelay(pdMS_TO_TICKS(100));
+        stateMachine.update();
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
