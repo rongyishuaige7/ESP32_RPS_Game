@@ -36,7 +36,7 @@ ESP32-S3-CAM 引脚分配:
 **Step 1: 创建项目结构**
 
 ```bash
-cd /home/rongyi/桌面/ESP32_RPS_Game
+cd ./project
 mkdir -p src include lib test
 ```
 
