@@ -5,3 +5,8 @@
 .gcc-flags.json
 *.pyc
 __pycache__
+
+# ESP-IDF / PlatformIO generated configuration
+sdkconfig
+sdkconfig.*
+!sdkconfig.defaults
