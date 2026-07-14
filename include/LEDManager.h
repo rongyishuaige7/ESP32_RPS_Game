@@ -5,9 +5,9 @@
 
 enum LEDColor {
     LED_OFF,
-    LED_GREEN,   // Player win
-    LED_RED,     // PC win
-    LED_YELLOW   // Draw
+    LED_GREEN,   // 玩家赢
+    LED_RED,     // 电脑赢
+    LED_YELLOW   // 平局
 };
 
 class LEDManager {

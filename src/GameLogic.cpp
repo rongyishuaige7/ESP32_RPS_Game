@@ -21,9 +21,18 @@ GameResult GameLogic::determineWinner(Gesture player, Gesture pc) {
 
 const char* GameLogic::gestureToEmoji(Gesture g) {
     switch(g) {
-        case GESTURE_STONE: return "R";     // Rock
-        case GESTURE_SCISSORS: return "S"; // Scissors
-        case GESTURE_PAPER: return "P";    // Paper
+        case GESTURE_STONE: return "R";     // 石头
+        case GESTURE_SCISSORS: return "S"; // 剪刀
+        case GESTURE_PAPER: return "P";    // 布
+        default: return "?";
+    }
+}
+
+const char* GameLogic::gestureToName(Gesture g) {
+    switch(g) {
+        case GESTURE_STONE:   return "Stone";
+        case GESTURE_SCISSORS: return "Scissors";
+        case GESTURE_PAPER:   return "Paper";
         default: return "?";
     }
 }

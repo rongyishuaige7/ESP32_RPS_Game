@@ -7,14 +7,11 @@
 
 static const char* TAG = "StateMachine";
 
-// External module instances
-extern AudioManager audio;
-extern LEDManager led;
-extern HandRecognition handRecog;
-extern GameLogic gameLogic;
-
-StateMachine::StateMachine(DisplayManager* disp, ButtonManager* btn)
+StateMachine::StateMachine(DisplayManager* disp, ButtonManager* btn,
+                         AudioManager* aud, LEDManager* ledPtr,
+                         HandRecognition* handRecogPtr, GameLogic* gameLogicPtr)
     : currentState(STATE_IDLE), display(disp), buttons(btn),
+      audio(aud), led(ledPtr), handRecog(handRecogPtr), gameLogic(gameLogicPtr),
       countdownValue(3), playerScore(0), pcScore(0), stateStartTime(0) {}
 
 void StateMachine::reset() {
@@ -22,13 +19,15 @@ void StateMachine::reset() {
     playerScore = 0;
     pcScore = 0;
     countdownValue = 3;
+    display->setDirty(true);
     display->showIdle();
-    led.setColor(LED_OFF);
+    display->setDirty(false);
+    led->setColor(LED_OFF);
     ESP_LOGI(TAG, "Game reset to IDLE state");
 }
 
 void StateMachine::update() {
-    // Handle reset button anytime
+    // 任意时刻处理复位键
     if (buttons->isResetPressed()) {
         reset();
         return;
@@ -43,11 +42,16 @@ void StateMachine::update() {
 }
 
 void StateMachine::handleIdle() {
-    display->showIdle();
+    if (display->isDirty()) {
+        display->showIdle();
+        display->setDirty(false);
+    }
     if (buttons->isStartPressed()) {
         currentState = STATE_COUNTDOWN;
         countdownValue = 3;
         stateStartTime = xTaskGetTickCount() * portTICK_PERIOD_MS;
+        display->showCountdown(3);
+        audio->playSound(SOUND_COUNTDOWN);
         ESP_LOGI(TAG, "Starting countdown");
     }
 }
@@ -59,7 +63,11 @@ void StateMachine::handleCountdown() {
     if (newCountdown != countdownValue && newCountdown >= 0) {
         countdownValue = newCountdown;
         display->showCountdown(countdownValue);
-        audio.playSound(SOUND_COUNTDOWN);
+        if (countdownValue > 0) {
+            audio->playSound(SOUND_COUNTDOWN);
+        } else {
+            audio->playSound(SOUND_GO);
+        }
         ESP_LOGI(TAG, "Countdown: %d", countdownValue);
     }
 
@@ -74,12 +82,12 @@ void StateMachine::handlePlaying() {
     display->showPlaying();
     ESP_LOGI(TAG, "Playing - gesture recognition");
 
-    // Recognize player gesture
-    RecognitionResult playerResult = handRecog.recognize();
+    // 识别玩家手势
+    RecognitionResult playerResult = handRecog->recognize();
 
     if (!playerResult.valid) {
         display->showRetry();
-        audio.playSound(SOUND_COUNTDOWN);
+        audio->playSound(SOUND_COUNTDOWN);
         vTaskDelay(pdMS_TO_TICKS(1000));
         currentState = STATE_COUNTDOWN;
         countdownValue = 3;
@@ -88,37 +96,41 @@ void StateMachine::handlePlaying() {
         return;
     }
 
-    // Generate PC gesture
-    Gesture pcGesture = gameLogic.generatePCGesture();
+    // 生成电脑出拳
+    Gesture pcGesture = gameLogic->generatePCGesture();
 
-    // Determine winner
-    GameResult result = gameLogic.determineWinner(playerResult.gesture, pcGesture);
+    // 先显示电脑出拳 1 秒，再显示完整结果
+    display->showPCGesture(gameLogic->gestureToName(pcGesture));
+    vTaskDelay(pdMS_TO_TICKS(1000));
 
-    // Update score
+    // 判定胜负
+    GameResult result = gameLogic->determineWinner(playerResult.gesture, pcGesture);
+
+    // 更新比分
     if (result == RESULT_PLAYER_WIN) {
         playerScore++;
     } else if (result == RESULT_PC_WIN) {
         pcScore++;
     }
 
-    // Get display strings
-    const char* playerEmoji = gameLogic.gestureToEmoji(playerResult.gesture);
-    const char* pcEmoji = gameLogic.gestureToEmoji(pcGesture);
-    const char* resultStr = gameLogic.resultToString(result);
+    // 获取显示用字符串
+    const char* playerEmoji = gameLogic->gestureToEmoji(playerResult.gesture);
+    const char* pcEmoji = gameLogic->gestureToEmoji(pcGesture);
+    const char* resultStr = gameLogic->resultToString(result);
 
-    // Display result
+    // 显示结果
     display->showResult(playerEmoji, pcEmoji, resultStr, playerScore, pcScore);
 
-    // Play sound and set LED
+    // 播放音效并设置 LED
     if (result == RESULT_PLAYER_WIN) {
-        audio.playSound(SOUND_PLAYER_WIN);
-        led.setColor(LED_GREEN);
+        audio->playSound(SOUND_PLAYER_WIN);
+        led->setColor(LED_GREEN);
     } else if (result == RESULT_PC_WIN) {
-        audio.playSound(SOUND_PC_WIN);
-        led.setColor(LED_RED);
+        audio->playSound(SOUND_PC_WIN);
+        led->setColor(LED_RED);
     } else {
-        audio.playSound(SOUND_DRAW);
-        led.setColor(LED_YELLOW);
+        audio->playSound(SOUND_DRAW);
+        led->setColor(LED_YELLOW);
     }
 
     stateStartTime = xTaskGetTickCount() * portTICK_PERIOD_MS;
@@ -130,13 +142,12 @@ void StateMachine::handleResult() {
     unsigned long elapsed = xTaskGetTickCount() * portTICK_PERIOD_MS - stateStartTime;
 
     if (elapsed > 2000) {
-        // Turn off LED before next round
-        led.setColor(LED_OFF);
-
-        // Auto start next round
+        led->setColor(LED_OFF);
         currentState = STATE_COUNTDOWN;
         countdownValue = 3;
         stateStartTime = xTaskGetTickCount() * portTICK_PERIOD_MS;
+        display->showCountdown(3);
+        audio->playSound(SOUND_COUNTDOWN);
         ESP_LOGI(TAG, "Auto starting next round");
     }
 }

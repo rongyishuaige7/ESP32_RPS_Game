@@ -1,111 +1,106 @@
-# ESP32-S3 Rock Paper Scissors
+# ESP32 RPS Game
 
-一个基于 ESP32-S3、ESP-IDF 和 PlatformIO 的剪刀石头布硬件游戏原型。项目把按键、倒计时、OLED、蜂鸣器、RGB LED、比分与状态机拆分成独立模块，适合用于嵌入式游戏流程和外设联调实验。
+基于 ESP32-S3 的猜拳游戏：摄像头识别手势（石头/剪刀/布），与电脑随机出拳对决，结果通过 OLED、蜂鸣器和 RGB LED 反馈；可选 WiFi 实时摄像头流。
 
-> **重要状态说明：** 当前公开版本的完整游戏状态机可以运行，但“手势识别”仍是测试桩：`HandRecognition::recognize()` 使用随机数返回石头、剪刀或布，尚未读取摄像头图像。不要把当前版本描述为已完成真实视觉识别。
+## 功能
 
-## 当前已实现
+- 手势识别：石头（握拳）、剪刀（两指）、布（张开手掌），纯图像处理（YCbCr 肤色 + 指峰检测）
+- 四状态流程：待机 → 倒计时 → 出拳识别 → 结果展示，支持多局计分
+- OLED 显示当前状态与比分；蜂鸣器播放倒计时/胜负音效；RGB LED 指示胜负（绿/红/黄）
+- 可选 HTTP MJPEG 摄像头流，在待机或结果界面可浏览器查看画面
 
-- `IDLE → COUNTDOWN → PLAYING → RESULT` 游戏状态机
-- 开始和复位按键输入
-- 电脑手势随机生成与胜负判断
-- 连续比分记录
-- OLED 初始化和显示流程接口
-- 蜂鸣器倒计时及不同结果音效
-- RGB LED 胜 / 负 / 平反馈
-- PlatformIO + ESP-IDF 工程配置
+## 硬件清单
 
-## 尚未完成
+| 组件 | 说明 |
+|------|------|
+| 主控 | ESP32-S3（需 PSRAM，如 ESP32-S3-DevKitC-1、ESP32-S3-EYE 等） |
+| 摄像头 | 板载 OV3660（CSI），或兼容引脚的外接模组 |
+| 显示屏 | 0.96" SSD1306 OLED，128×64，I2C |
+| 按键 | 2 个：开始、复位 |
+| 蜂鸣器 | 无源压电蜂鸣器 |
+| LED | 共阳极 RGB LED（红/绿/蓝） |
 
-- 摄像头采集和真实手势识别
-- 指尖/轮廓算法或 TFLite 模型
-- OLED 字库和实际文本绘制：当前显示函数主要通过串口日志输出状态
-- 真机接线图、实物照片和硬件在环测试报告
+## 引脚接线
 
-## 硬件目标
+| 功能 | GPIO | 说明 |
+|------|------|------|
+| **OLED (I2C)** | | 软件 I2C，与摄像头 SCCB 分离 |
+| SDA | 1 | 数据 |
+| SCL | 3 | 时钟 |
+| **按键** | | 低电平有效，内部上拉，一端接 GND |
+| 开始 | 0 | 开始游戏 / 进入倒计时 |
+| 复位 | 47 | 清零比分并返回待机 |
+| **蜂鸣器** | 2 | 正极接 GPIO 2，负极 GND |
+| **RGB LED（共阳）** | | 低电平点亮，各色串 220–330Ω |
+| 红 | 48 | 电脑赢 |
+| 绿 | 45 | 玩家赢 |
+| 蓝 | 38 | 预留；平局为红+绿同亮（黄） |
 
-- ESP32-S3 开发板（当前 PlatformIO board：`esp32-s3-devkitc-1`）
-- SSD1306 I²C OLED（地址 `0x3C`）
-- 开始按键、复位按键
-- 蜂鸣器
-- RGB LED
-- 摄像头模块（为后续真实识别预留，当前未接入代码）
+摄像头引脚为板载常用配置（XCLK=15, SIOD=4, SIOC=5, D0–D7, VSYNC/HREF/PCLK 等），见 `include/HandRecognition.h`。OLED 使用 1/3 与摄像头 4/5 分开，避免总线冲突。
 
-## 当前引脚
+## 构建与烧录
 
-以下引脚来自当前源码，是待真机核对的实现值：
-
-| 功能 | GPIO |
-| --- | --- |
-| OLED SDA | GPIO 4 |
-| OLED SCL | GPIO 15 |
-| 开始按键 | GPIO 0 |
-| 复位按键 | GPIO 47 |
-| 蜂鸣器 | GPIO 21 |
-| LED 绿 | GPIO 45 |
-| LED 红 | GPIO 48 |
-| LED 蓝 | GPIO 38 |
-
-> 不同 ESP32-S3 板卡的可用引脚、启动脚和板载外设不同。接线前请核对具体板卡原理图；不要仅凭本表直接通电。
-
-## 架构
-
-```text
-src/
-├── main.cpp               # 初始化与主循环
-├── StateMachine.cpp       # 游戏状态流转
-├── GameLogic.cpp          # 随机电脑手势、胜负判断
-├── HandRecognition.cpp    # 当前为随机手势测试桩
-├── DisplayManager.cpp     # SSD1306 初始化与显示接口
-├── ButtonManager.cpp      # 按键中断
-├── AudioManager.cpp       # LEDC 蜂鸣器
-└── LEDManager.cpp         # 结果灯效
-```
-
-## 构建
-
-### VS Code + PlatformIO
-
-1. 安装 [PlatformIO](https://platformio.org/)。
-2. 打开仓库根目录。
-3. 选择环境 `esp32-s3-devkitc-1`。
-4. 依次执行 Build、Upload、Monitor。
-
-### PlatformIO CLI
+需要 [PlatformIO](https://platformio.org/)（CLI 或 VS Code 插件）。
 
 ```bash
+# 编译
 pio run
+
+# 烧录
 pio run --target upload
-pio device monitor --baud 115200
+
+# 串口监视（波特率 115200）
+pio device monitor -b 115200
 ```
 
-项目当前锁定：
+板型与 PSRAM 等在 `platformio.ini` 中以 `esp32-s3-devkitc-1` 兼容配置构建。当前配置启用了 OPI PSRAM；请确认你的实际模组确实带 PSRAM。若使用无 PSRAM 的 N8 或其他板型，需要调整 `board` 和内存配置，不能只依赖项目名称判断。
 
-```ini
-platform = espressif32@6.4.0
-framework = espidf
+## 游戏玩法
+
+1. **待机**：OLED 显示 “RPS Game / Press START”。按 **开始键** 进入倒计时。
+2. **倒计时**：3→2→1→GO!，蜂鸣器每秒一响，结束后进入出拳。
+3. **出拳**：将手放入画面中心区域，做石头/剪刀/布。若识别不稳定会提示重试并再次倒计时。
+4. **结果**：显示双方出拳与胜负，蜂鸣器与 LED 反馈，约 2 秒后自动进入下一局倒计时。
+5. 任意时刻按 **复位键** 可清零比分并回到待机。
+
+手势约定：握拳 = 石头，两指 = 剪刀，张开手掌 = 布。识别仅用中心约 60% 画面，减少背景干扰。
+
+## WiFi 摄像头流（可选）
+
+固件默认以 **AP 模式** 建热点，仅在 **待机** 或 **结果** 界面推流，避免与识别争用摄像头。
+
+- **热点**：SSID `RPS-CAM`，密码 `12345678`
+- 连接后浏览器打开：**http://192.168.4.1/** 或直接 **http://192.168.4.1/stream** 观看 MJPEG 流
+
+帧率默认约 5 fps，可在 `include/CameraStream.h` 中修改 `STREAM_FPS`。若需连接已有路由器（STA 模式），见 [`DEPLOYMENT.md`](./DEPLOYMENT.md)。WiFi 凭据必须通过本地构建参数提供，不要提交到 Git。
+
+> 默认 AP 密码仅用于本地原型测试。将设备交给他人或在公共场所使用前，请改成独立强密码。
+
+## 实现与验证状态
+
+- 已实现：OV3660 初始化、真实帧获取、RGB565 转换、YCbCr 肤色分割、指峰检测、三帧多数投票。
+- 已实现：OLED、按键、非阻塞蜂鸣器、共阳极 RGB LED、游戏状态机和可选 MJPEG 推流。
+- 当前失败语义：摄像头初始化失败时返回无效识别并重试，**不会**用随机手势伪装成识别成功。
+- 本仓库的阈值属于启发式算法，需要针对实际光线、背景、距离和肤色校准，不等同于训练模型的泛化能力。
+- 发布前至少执行 `pio run`；涉及板型或引脚改动时还需重新烧录真机并核对串口、OLED、摄像头和三种手势。
+
+## 项目结构
+
+```
+ESP32_RPS_Game/
+├── platformio.ini       # 板型、框架、库依赖、编译选项
+├── src/
+│   ├── main.cpp         # 入口：初始化各模块，主循环调用状态机与音频
+│   ├── StateMachine.cpp # 四状态 FSM：IDLE / COUNTDOWN / PLAYING / RESULT
+│   ├── GameLogic.cpp    # 猜拳胜负与随机出拳
+│   ├── HandRecognition.cpp  # 摄像头 + 肤色分割 + 指峰识别
+│   ├── DisplayManager.cpp   # U8g2 OLED 各状态界面
+│   ├── CameraStream.cpp     # WiFi AP/STA + HTTP MJPEG 服务
+│   ├── AudioManager.cpp     # 蜂鸣器非阻塞音效
+│   ├── ButtonManager.cpp    # 按键消抖
+│   └── LEDManager.cpp       # RGB LED
+├── include/             # 对应头文件与引脚/参数宏
+└── DEPLOYMENT.md        # 详细接线、环境、FAQ（中文）
 ```
 
-## 当前游戏流程
-
-1. 启动后进入等待状态。
-2. 按下开始键，进入 3 秒倒计时。
-3. `HandRecognition` 返回测试手势。
-4. `GameLogic` 随机生成电脑手势并判断结果。
-5. OLED 接口、串口日志、蜂鸣器和 LED 给出反馈。
-6. 两秒后自动开始下一轮；复位键可随时清零比分。
-
-## 把测试桩升级为真实识别
-
-建议按以下顺序推进：接入并验证 `esp32-camera`、建立带标签测试集、选择传统图像处理或量化模型、定义置信度和重试行为，并在不同光照/距离/背景下做真机测试。
-
-## 已知限制
-
-- 公开代码未完成真实视觉识别。
-- OLED 文本字模尚未实现，主要状态目前见串口日志。
-- 引脚和外设组合尚缺少公开真机验证证据。
-- 没有 CI、单元测试、Release 或预编译固件。
-
-## License
-
-本项目采用 [MIT License](./LICENSE)。
+额外依赖库（由 PlatformIO 安装）：`olikraus/U8g2`。摄像头驱动由当前 Arduino-ESP32 框架提供。

@@ -1,79 +1,90 @@
 #include "AudioManager.h"
-#include "esp_log.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+#include <Arduino.h>
 
-static const char* TAG = "Audio";
-
-AudioManager::AudioManager() {}
+AudioManager::AudioManager()
+    : sequenceLen(0), currentNote(0), noteStartMs(0), playing(false) {}
 
 void AudioManager::init() {
-    // Configure GPIO for buzzer
-    gpio_reset_pin(BUZZER_PIN);
-    gpio_set_direction(BUZZER_PIN, GPIO_MODE_OUTPUT);
-
-    // Configure LEDC timer
-    ledc_timer_config_t timer;
-    timer.speed_mode = LEDC_LOW_SPEED_MODE;
-    timer.timer_num = LEDC_TIMER_0;
-    timer.clk_cfg = LEDC_AUTO_CLK;
-    timer.duty_resolution = LEDC_TIMER_10_BIT;
-    timer.freq_hz = 1000;
-    ledc_timer_config(&timer);
-
-    // Configure LEDC channel
-    ledc_channel_config_t channel;
-    channel.gpio_num = BUZZER_PIN;
-    channel.speed_mode = LEDC_LOW_SPEED_MODE;
-    channel.channel = LEDC_CHANNEL_0;
-    channel.timer_sel = LEDC_TIMER_0;
-    channel.duty = 0;
-    channel.hpoint = 0;
-    ledc_channel_config(&channel);
-    ledc_fade_func_install(0);
-
-    ESP_LOGI(TAG, "Buzzer initialized on GPIO %d", BUZZER_PIN);
+    pinMode(BUZZER_PIN, OUTPUT);
+    digitalWrite(BUZZER_PIN, LOW);
+    ledcAttachPin(BUZZER_PIN, LEDC_CHANNEL);
+    stopTone();
+    Serial.println("Buzzer initialized (LEDC) on GPIO " + String(BUZZER_PIN));
 }
 
-void AudioManager::playSound(SoundType type) {
-    switch(type) {
-        case SOUND_COUNTDOWN:
-            beep(1000, 100);
-            break;
-        case SOUND_PLAYER_WIN:
-            // Rising: Do-Re-Do
-            beep(523, 150);  // C5
-            vTaskDelay(pdMS_TO_TICKS(100));
-            beep(587, 150);  // D5
-            vTaskDelay(pdMS_TO_TICKS(100));
-            beep(523, 200);  // C5
-            break;
-        case SOUND_PC_WIN:
-            // Falling
-            beep(587, 150);  // D5
-            vTaskDelay(pdMS_TO_TICKS(100));
-            beep(523, 250);  // C5
-            break;
-        case SOUND_DRAW:
-            // Double beep: Do-Mi
-            beep(523, 100);  // C5
-            vTaskDelay(pdMS_TO_TICKS(50));
-            beep(659, 150);  // E5
-            break;
+void AudioManager::startTone(uint32_t freq_hz) {
+    if (freq_hz > 0) {
+        ledcWriteTone(LEDC_CHANNEL, freq_hz);
+    } else {
+        ledcWriteTone(LEDC_CHANNEL, 0);
     }
 }
 
-void AudioManager::beep(uint32_t freq, uint32_t duration_ms) {
-    // Use PWM to generate tone
-    ledc_set_freq(LEDC_LOW_SPEED_MODE, LEDC_TIMER_0, freq);
-    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 512);  // 50% duty
-    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
-    vTaskDelay(pdMS_TO_TICKS(duration_ms));
-    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0);
-    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+void AudioManager::stopTone() {
+    ledcWriteTone(LEDC_CHANNEL, 0);
 }
 
 void AudioManager::stop() {
-    ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, 0);
-    ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+    stopTone();
+    playing = false;
+}
+
+void AudioManager::playSound(SoundType type) {
+    stopTone();
+    sequenceLen = 0;
+    switch (type) {
+        case SOUND_COUNTDOWN:
+            sequence[0] = {1000, 100};
+            sequenceLen = 1;
+            break;
+        case SOUND_GO:
+            sequence[0] = {440, 80};
+            sequence[1] = {0, 40};
+            sequence[2] = {880, 120};
+            sequenceLen = 3;
+            break;
+        case SOUND_PLAYER_WIN:
+            sequence[0] = {523, 150};
+            sequence[1] = {0, 100};   // 间隔
+            sequence[2] = {587, 150};
+            sequence[3] = {0, 100};
+            sequence[4] = {523, 200};
+            sequenceLen = 5;
+            break;
+        case SOUND_PC_WIN:
+            sequence[0] = {587, 150};
+            sequence[1] = {0, 100};
+            sequence[2] = {523, 250};
+            sequenceLen = 3;
+            break;
+        case SOUND_DRAW:
+            sequence[0] = {523, 100};
+            sequence[1] = {0, 50};
+            sequence[2] = {659, 150};
+            sequenceLen = 3;
+            break;
+    }
+    if (sequenceLen > 0) {
+        currentNote = 0;
+        noteStartMs = millis();
+        startTone(sequence[0].freq_hz);
+        playing = true;
+    }
+}
+
+void AudioManager::update() {
+    if (!playing || sequenceLen == 0) return;
+
+    uint32_t now = millis();
+    uint32_t elapsed = now - noteStartMs;
+    if (elapsed < sequence[currentNote].duration_ms) return;
+
+    currentNote++;
+    if (currentNote >= sequenceLen) {
+        stopTone();
+        playing = false;
+        return;
+    }
+    noteStartMs = now;
+    startTone(sequence[currentNote].freq_hz);
 }

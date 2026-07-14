@@ -22,9 +22,11 @@ void LEDManager::init() {
 }
 
 void LEDManager::setColor(LEDColor color) {
-    gpio_set_level(LED_G, color == LED_GREEN ? 1 : 0);
-    gpio_set_level(LED_R, color == LED_RED ? 1 : 0);
-    gpio_set_level(LED_B, color == LED_YELLOW ? 1 : 0);
+    // 共阳极 LED: 低电平点亮
+    // 玩家赢-绿，电脑赢-红，平局-黄(红+绿)
+    gpio_set_level(LED_G, (color == LED_GREEN || color == LED_YELLOW) ? 0 : 1);
+    gpio_set_level(LED_R, (color == LED_RED || color == LED_YELLOW) ? 0 : 1);
+    gpio_set_level(LED_B, 1);  // 蓝色仅用于扩展，平局用黄
 }
 
 void LEDManager::blink(LEDColor color, int times) {

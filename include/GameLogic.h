@@ -22,6 +22,7 @@ public:
     Gesture generatePCGesture();
     GameResult determineWinner(Gesture player, Gesture pc);
     const char* gestureToEmoji(Gesture g);
+    const char* gestureToName(Gesture g);
     const char* resultToString(GameResult r);
 };
 
