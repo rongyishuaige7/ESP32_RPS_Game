@@ -2,11 +2,11 @@
 
 基于 ESP32-S3 的猜拳游戏：摄像头识别手势（石头/剪刀/布），与电脑随机出拳对决，结果通过 OLED、蜂鸣器和 RGB LED 反馈；可选 WiFi 实时摄像头流。
 
-## Historical material evidence (2026-07-18 publication)
+## 历史素材证据（2026-07-18 发布）
 
-historical EDA derivative(s). See [MEDIA_EVIDENCE](docs/MEDIA_EVIDENCE.md) for dates, sanitization, omissions, and evidence limits.
+历史 EDA 脱敏衍生文件。日期、脱敏处理、未公开材料和证据边界见 [MEDIA_EVIDENCE](docs/MEDIA_EVIDENCE.md)。
 
-Historical media/EDA do not prove that the current public commit was flashed or re-tested on hardware. **Current hardware re-test not run.**
+历史照片、截图或 EDA 不证明当前公开提交已烧录或完成真机复测。**当前未进行真机复测。**
 
 
 ## 功能

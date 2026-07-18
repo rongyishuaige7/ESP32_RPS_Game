@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Narrow publication gate for the historical EDA derivative."""
+"""历史 EDA 脱敏衍生文件的窄范围发布门禁。"""
 from __future__ import annotations
 import re
 import sys
@@ -26,7 +26,7 @@ def main() -> int:
             failures.append("schematic contains private-network or credential material")
     if EVIDENCE.is_file():
         text = EVIDENCE.read_text(encoding="utf-8")
-        for required in ("Authoritative originals remain unchanged", "Current hardware re-test not run"):
+        for required in ("权威原件保持不变", "当前未进行真机复测"):
             if required not in text:
                 failures.append(f"evidence boundary missing: {required}")
     if failures:
