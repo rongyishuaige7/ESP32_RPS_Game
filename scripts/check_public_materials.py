@@ -26,7 +26,7 @@ def main() -> int:
             failures.append("schematic contains private-network or credential material")
     if EVIDENCE.is_file():
         text = EVIDENCE.read_text(encoding="utf-8")
-        for required in ("原始文件", "PROJECT_STATUS"):
+        for required in ("原始文件", "项目资料"):
             if required not in text:
                 failures.append(f"evidence boundary missing: {required}")
     if failures:
