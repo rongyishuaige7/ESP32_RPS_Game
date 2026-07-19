@@ -2,7 +2,7 @@
 
 基于 ESP32-S3 的猜拳游戏：摄像头识别手势（石头/剪刀/布），与电脑随机出拳对决，结果通过 OLED、蜂鸣器和 RGB LED 反馈；可选 WiFi 实时摄像头流。
 
-## 项目照片与资料
+## 项目资料
 
 相关 EDA 文件已整理，文件处理说明见 [MEDIA_EVIDENCE](docs/MEDIA_EVIDENCE.md)。
 
